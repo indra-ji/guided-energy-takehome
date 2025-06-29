@@ -94,35 +94,3 @@ class CurrentWeatherRequest(BaseModel):
     models: Optional[List[str]] = Field(None, description="Manually select one or more weather models. Per default, the best suitable weather models will be combined.")
     cell_selection: Optional[Literal["land", "sea", "nearest"]] = Field("land", description="Set a preference how grid-cells are selected. The default land finds a suitable grid-cell on land with similar elevation to the requested coordinates using a 90-meter digital elevation model. sea prefers grid-cells on sea. nearest selects the nearest possible grid-cell.")
 
-""""
-class ForecastWeatherRequest(BaseModel):
-    Request model for forecasted weather data using the new API provider
-    
-    latitude: float = Field(..., description="Geographical WGS84 coordinate of the location (latitude). Multiple coordinates can be comma separated.")
-    longitude: float = Field(..., description="Geographical WGS84 coordinate of the location (longitude). Multiple coordinates can be comma separated.")
-    elevation: Optional[float] = Field(None, description="The elevation used for statistical downscaling. Per default, a 90 meter digital elevation model is used. You can manually set the elevation to correctly match mountain peaks. If elevation=nan is specified, downscaling will be disabled and the API uses the average grid-cell height. For multiple locations, elevation can also be comma separated.")
-    hourly: Optional[HourlyParameters] = Field(None, description="Hourly weather parameters to include in the response")
-    daily: Optional[List[str]] = Field(None, description="A list of daily weather variable aggregations which should be returned. Values can be comma separated, or multiple daily parameters in the URL can be used. If daily weather variables are specified, parameter timezone is required.")
-    current: Optional[List[str]] = Field(None, description="A list of weather variables to get current conditions.")
-    temperature_unit: Optional[Literal["celsius", "fahrenheit"]] = Field("celsius", description="If fahrenheit is set, all temperature values are converted to Fahrenheit.")
-    wind_speed_unit: Optional[Literal["kmh", "ms", "mph", "kn"]] = Field("kmh", description="Wind speed units: kmh (default), ms, mph and kn")
-    precipitation_unit: Optional[Literal["mm", "inch"]] = Field("mm", description="Precipitation amount units: mm (default) or inch")
-    timeformat: Optional[Literal["iso8601", "unixtime"]] = Field("iso8601", description="If format unixtime is selected, all time values are returned in UNIX epoch time in seconds. Please note that all timestamp are in GMT+0! For daily values with unix timestamps, please apply utc_offset_seconds again to get the correct date.")
-    timezone: Optional[str] = Field("GMT", description="If timezone is set, all timestamps are returned as local-time and data is returned starting at 00:00 local-time. Any time zone name from the time zone database is supported. If auto is set as a time zone, the coordinates will be automatically resolved to the local time zone. For multiple coordinates, a comma separated list of timezones can be specified.")
-    past_days: Optional[int] = Field(0, ge=0, le=92, description="If past_days is set, yesterday or the day before yesterday data are also returned. Range: 0-92 days.")
-    forecast_days: Optional[int] = Field(7, ge=0, le=16, description="Per default, only 7 days are returned. Up to 16 days of forecast are possible. Range: 0-16 days.")
-    forecast_hours: Optional[int] = Field(None, gt=0, description="Similar to forecast_days, the number of timesteps of hourly data can be controlled. Instead of using the current day as a reference, the current hour is used.")
-    forecast_minutely_15: Optional[int] = Field(None, gt=0, description="Similar to forecast_days, the number of timesteps of 15-minutely data can be controlled. Instead of using the current day as a reference, the current 15-minute time-step is used.")
-    past_hours: Optional[int] = Field(None, gt=0, description="Similar to forecast_days, the number of timesteps of past hourly data can be controlled. Instead of using the current day as a reference, the current hour is used.")
-    past_minutely_15: Optional[int] = Field(None, gt=0, description="Similar to forecast_days, the number of timesteps of past 15-minutely data can be controlled. Instead of using the current day as a reference, the current 15-minute time-step is used.")
-    start_date: Optional[str] = Field(None, description="The time interval to get weather data. A day must be specified as an ISO8601 date (e.g. 2022-06-30).")
-    end_date: Optional[str] = Field(None, description="The time interval to get weather data. A day must be specified as an ISO8601 date (e.g. 2022-06-30).")
-    start_hour: Optional[str] = Field(None, description="The time interval to get weather data for hourly data. Time must be specified as an ISO8601 date (e.g. 2022-06-30T12:00).")
-    end_hour: Optional[str] = Field(None, description="The time interval to get weather data for hourly data. Time must be specified as an ISO8601 date (e.g. 2022-06-30T12:00).")
-    start_minutely_15: Optional[str] = Field(None, description="The time interval to get weather data for 15 minutely data. Time must be specified as an ISO8601 date (e.g. 2022-06-30T12:00).")
-    end_minutely_15: Optional[str] = Field(None, description="The time interval to get weather data for 15 minutely data. Time must be specified as an ISO8601 date (e.g. 2022-06-30T12:00).")
-    models: Optional[List[str]] = Field(None, description="Manually select one or more weather models. Per default, the best suitable weather models will be combined.")
-    cell_selection: Optional[Literal["land", "sea", "nearest"]] = Field("land", description="Set a preference how grid-cells are selected. The default land finds a suitable grid-cell on land with similar elevation to the requested coordinates using a 90-meter digital elevation model. sea prefers grid-cells on sea. nearest selects the nearest possible grid-cell.")
-    apikey: Optional[str] = Field(None, description="Only required for commercial use to access reserved API resources for customers. The server URL requires the prefix customer-.")
-
-"""
