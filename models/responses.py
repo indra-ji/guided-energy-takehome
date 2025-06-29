@@ -6,7 +6,7 @@ class HealthResponse(BaseModel):
     message: str
 
 class AgentResponse(BaseModel):
-    message: str
+    message: str = Field(..., description="Response message from the agent")
 
 class CurrentWeatherUnits(BaseModel):
     """Units for current weather parameters"""

@@ -1,0 +1,40 @@
+{
+  "_metadata": {
+    "version": "1.0.0",
+    "last_edited": "2024-01-20T10:30:00Z",
+    "description": "Configuration settings for OpenAI API calls",
+    "author": "System"
+  },
+  "openai": {
+    "weather_classification": {
+      "model": "gpt-4.1-nano",
+      "max_tokens": 50,
+      "temperature": 0,
+      "response_format": {
+        "type": "json_object"
+      },
+      "version": "1.0.0",
+      "last_edited": "2024-01-20T10:30:00Z"
+    },
+    "weather_parameter_extraction": {
+      "model": "gpt-4.1",
+      "max_tokens": 500,
+      "temperature": 0,
+      "response_format": {
+        "type": "json_object"
+      },
+      "version": "1.0.0",
+      "last_edited": "2024-01-20T10:30:00Z"
+    },
+    "weather_request_building": {
+      "model": "gpt-4.1",
+      "max_tokens": 300,
+      "temperature": 0,
+      "response_format": {
+        "type": "json_object"
+      },
+      "version": "1.0.0",
+      "last_edited": "2024-01-20T10:30:00Z"
+    }
+  }
+} 

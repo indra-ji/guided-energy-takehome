@@ -1,12 +1,12 @@
 from fastapi import FastAPI, HTTPException, Depends
 import uvicorn
-import dotenv
 import httpx
 
 from models.responses import HealthResponse, AgentResponse, CurrentWeatherResponse
-from models.requests import CurrentWeatherRequest
+from models.requests import CurrentWeatherRequest, AgentRequest
+from agents.simple import classify_weather_query
+from agents.simple import generate_weather_request
 
-dotenv.load_dotenv()
 
 # Create FastAPI app with custom metadata for Swagger
 app = FastAPI(
@@ -81,12 +81,25 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
-@app.get("/simple_weather_agent", response_model=AgentResponse)
-async def simple_weather_agent():
+@app.post("/simple_weather_agent")
+async def simple_weather_agent(request: AgentRequest):
     """
-    A simple weather agent that uses the weather API to get the weather for a given location.
+    A simple weather agent that uses the weather API to get the weather for the current location.
     """
-    return {"message": "Hello, World!"}
+
+    # Classify whether the query is within scope
+    is_weather_query = classify_weather_query(request.query)
+
+    # If the query is not about weather, return a message
+    if not is_weather_query:
+        return AgentResponse(message="I'm sorry, I can only answer questions about the weather at your current time and location.")
+
+    # Generate weather request for weather-related queries
+    weather_request = generate_weather_request(request.query)
+
+    return weather_request
+
+    
 
 
 def main():

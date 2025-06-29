@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import Literal, Optional, List
 
+class AgentRequest(BaseModel):
+    """Request model for agent"""
+
+    query: str = Field(..., description="The user query to answer")
+
+
 class CurrentWeatherParameters(BaseModel):
     """Available current weather parameters for Open-Meteo API. Every parameter for current weather also works for hourly weather."""
 
