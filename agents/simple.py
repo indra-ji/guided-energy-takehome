@@ -3,6 +3,7 @@ import os
 import json
 import dotenv
 from models.requests import CurrentWeatherParameters, CurrentWeatherRequest
+from utils.json_utils import load_json, ensure_strict_schema
 
 dotenv.load_dotenv()
 
@@ -10,58 +11,6 @@ dotenv.load_dotenv()
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
-
-def load_prompts():
-    """Load prompts from prompts.json"""
-    try:
-        with open('prompts/prompts.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        raise FileNotFoundError("prompts/prompts.json not found")
-
-def load_config():
-    """Load configuration from configs/config.json"""
-    try:
-        with open('configs/config.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        raise FileNotFoundError("configs/config.json not found")
-
-def ensure_strict_schema(schema: dict) -> dict:
-    """
-    Recursively ensure a schema is compatible with OpenAI's strict mode by:
-    1. Setting additionalProperties to false for all objects
-    2. Ensuring all properties are listed in required array
-    """
-    if isinstance(schema, dict):
-        # Handle object types
-        if schema.get('type') == 'object':
-            # Set additionalProperties to false
-            schema['additionalProperties'] = False
-            
-            # Ensure all properties are required
-            if 'properties' in schema:
-                schema['required'] = list(schema['properties'].keys())
-                
-                # Recursively process nested properties
-                for prop_name, prop_schema in schema['properties'].items():
-                    schema['properties'][prop_name] = ensure_strict_schema(prop_schema)
-        
-        # Handle arrays with items
-        elif schema.get('type') == 'array' and 'items' in schema:
-            schema['items'] = ensure_strict_schema(schema['items'])
-        
-        # Handle anyOf, oneOf, allOf
-        for key in ['anyOf', 'oneOf', 'allOf']:
-            if key in schema:
-                schema[key] = [ensure_strict_schema(s) for s in schema[key]]
-        
-        # Handle $ref (though Pydantic's model_json_schema should resolve these)
-        if '$defs' in schema:
-            for def_name, def_schema in schema['$defs'].items():
-                schema['$defs'][def_name] = ensure_strict_schema(def_schema)
-    
-    return schema
 
 def classify_weather_query(query: str) -> bool:
     """
@@ -75,8 +24,8 @@ def classify_weather_query(query: str) -> bool:
     """
     try:
         # Load prompts and config
-        prompts = load_prompts()
-        config = load_config()
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
         
         # Get configuration for weather classification
         openai_config = config["openai"]["weather_classification"]
@@ -121,8 +70,8 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
     """
     try:
         # Load prompts and config
-        prompts = load_prompts()
-        config = load_config()
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
         
         # Generate JSON schemas from Pydantic models and make them strict-compatible
         weather_params_schema = ensure_strict_schema(CurrentWeatherParameters.model_json_schema())
