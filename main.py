@@ -3,7 +3,7 @@ import uvicorn
 import dotenv
 import httpx
 
-from models.responses import HealthResponse, AgentResponse, CurrentWeatherResponse
+from models.responses import HealthResponse, AgentResponse
 from models.requests import CurrentWeatherRequest
 
 dotenv.load_dotenv()
@@ -39,23 +39,30 @@ async def health_check():
     )
 
 
-@app.get("/weather/current", response_model=CurrentWeatherResponse)
+@app.post("/weather/current")
 async def get_current_weather(request: CurrentWeatherRequest = Depends()):
     """
     Get current weather information for a given location using OpenMeteo API.
     """
     
     # Weather.com Current Conditions API endpoint
-    base_url = "https://api.weather.com"
-    api_url = "/v3/wx/observations/current"
+    base_url = "https://api.open-meteo.com"
+    api_url = "/v1/forecast"
     url = f"{base_url}{api_url}"
     
+    # Build params dictionary with inline checks
     params = {
-        "geocode": request.geocode,
-        "units": request.units,
-        "language": request.language,
-        "format": request.format,
-        "apikey": request.apiKey
+        "latitude": request.latitude,
+        "longitude": request.longitude,
+        **({} if request.elevation is None else {"elevation": request.elevation}),
+        **({} if request.current is None or not request.current.get_selected_parameters() else {"current": ",".join(request.current.get_selected_parameters())}),
+        **({} if request.temperature_unit == "celsius" else {"temperature_unit": request.temperature_unit}),
+        **({} if request.wind_speed_unit == "kmh" else {"wind_speed_unit": request.wind_speed_unit}),
+        **({} if request.precipitation_unit == "mm" else {"precipitation_unit": request.precipitation_unit}),
+        **({} if request.timeformat == "iso8601" else {"timeformat": request.timeformat}),
+        **({} if request.timezone == "GMT" else {"timezone": request.timezone}),
+        **({} if request.models is None or request.models == ["string"] or not request.models else {"models": ",".join(request.models)}),
+        **({} if request.cell_selection == "land" else {"cell_selection": request.cell_selection}),
     }
     
     async with httpx.AsyncClient() as client:
@@ -64,77 +71,12 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
             response.raise_for_status()
             weather_data = response.json()
             
-            # The API returns an array with one observation object
-            if not weather_data or len(weather_data) == 0:
-                raise HTTPException(status_code=404, detail="No weather data found for the specified location")
-            
-            obs = weather_data[0]  # Get the first (and only) observation
-            
-            # Map the API response to your CurrentWeatherResponse model
-            return CurrentWeatherResponse(
-                cloud_ceiling=obs.get("cloudCeiling"),
-                cloud_cover_phrase=obs["cloudCoverPhrase"],
-                day_of_week=obs["dayOfWeek"],
-                day_or_night=obs["dayOrNight"],
-                expiration_time_utc=obs["expirationTimeUtc"],
-                icon_code=obs["iconCode"],
-                icon_code_extend=obs["iconCodeExtend"],
-                obs_qualifier_code=obs.get("obsQualifierCode"),
-                obs_qualifier_severity=obs.get("obsQualifierSeverity"),
-                precip_1_hour=obs.get("precip1Hour"),
-                precip_6_hour=obs.get("precip6Hour"),
-                precip_24_hour=obs.get("precip24Hour"),
-                pressure_altimeter=obs.get("pressureAltimeter"),
-                pressure_change=obs["pressureChange"],
-                pressure_mean_sea_level=obs["pressureMeanSeaLevel"],
-                pressure_tendency_code=obs["pressureTendencyCode"],
-                pressure_tendency_trend=obs["pressureTendencyTrend"],
-                relative_humidity=obs["relativeHumidity"],
-                snow_1_hour=obs.get("snow1Hour"),
-                snow_6_hour=obs.get("snow6Hour"),
-                snow_24_hour=obs.get("snow24Hour"),
-                sunrise_time_local=obs.get("sunriseTimeLocal"),
-                sunrise_time_utc=obs.get("sunriseTimeUtc"),
-                sunset_time_local=obs.get("sunsetTimeLocal"),
-                sunset_time_utc=obs.get("sunsetTimeUtc"),
-                temperature=obs["temperature"],
-                temperature_change_24_hour=obs["temperatureChange24Hour"],
-                temperature_dew_point=obs["temperatureDewPoint"],
-                temperature_feels_like=obs["temperatureFeelsLike"],
-                temperature_heat_index=obs["temperatureHeatIndex"],
-                temperature_max_24_hour=obs["temperatureMax24Hour"],
-                temperature_max_since_7_am=obs["temperatureMaxSince7Am"],
-                temperature_min_24_hour=obs["temperatureMin24Hour"],
-                temperature_wind_chill=obs["temperatureWindChill"],
-                uv_description=obs.get("uvDescription"),
-                uv_index=obs.get("uvIndex"),
-                valid_time_local=obs["validTimeLocal"],
-                valid_time_utc=obs["validTimeUtc"],
-                visibility=obs["visibility"],
-                wind_direction=obs["windDirection"],
-                wind_direction_cardinal=obs["windDirectionCardinal"],
-                wind_gust=obs.get("windGust"),
-                wind_speed=obs["windSpeed"],
-                wx_phrase_long=obs["wxPhraseShort"],
-                wx_phrase_medium=obs.get("wxPhraseMedium"),
-                wx_phrase_short=obs.get("wxPhraseShort")
-            )
-            
+            return weather_data
+        
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 400:
-                raise HTTPException(status_code=400, detail="Invalid request parameters")
-            elif e.response.status_code == 401:
-                raise HTTPException(status_code=401, detail="Invalid API key")
-            elif e.response.status_code == 404:
-                raise HTTPException(status_code=404, detail="Location not found")
-            else:
-                raise HTTPException(status_code=e.response.status_code, detail=f"Weather API error: {e.response.text}")
-        except httpx.RequestError as e:
-            raise HTTPException(status_code=503, detail=f"Unable to connect to weather service: {str(e)}")
-        except KeyError as e:
-            raise HTTPException(status_code=502, detail=f"Unexpected response format from weather API: missing field {str(e)}")
+            raise HTTPException(status_code=500, detail=f"HTTP error occurred: {e}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 @app.get("/simple_weather_agent", response_model=AgentResponse)
 async def simple_weather_agent():
