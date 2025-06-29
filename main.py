@@ -3,7 +3,7 @@ import uvicorn
 import dotenv
 import httpx
 
-from models.responses import HealthResponse, AgentResponse
+from models.responses import HealthResponse, AgentResponse, CurrentWeatherResponse
 from models.requests import CurrentWeatherRequest
 
 dotenv.load_dotenv()
@@ -39,7 +39,7 @@ async def health_check():
     )
 
 
-@app.post("/weather/current")
+@app.post("/weather/current", response_model=CurrentWeatherResponse)
 async def get_current_weather(request: CurrentWeatherRequest = Depends()):
     """
     Get current weather information for a given location using OpenMeteo API.
@@ -59,7 +59,7 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
         **({} if request.temperature_unit == "celsius" else {"temperature_unit": request.temperature_unit}),
         **({} if request.wind_speed_unit == "kmh" else {"wind_speed_unit": request.wind_speed_unit}),
         **({} if request.precipitation_unit == "mm" else {"precipitation_unit": request.precipitation_unit}),
-        **({} if request.timeformat == "iso8601" else {"timeformat": request.timeformat}),
+        **({} if request.timeformat == "iso8601" else {"timeformat": request.timeformat}), 
         **({} if request.timezone == "GMT" else {"timezone": request.timezone}),
         **({} if request.models is None or request.models == ["string"] or not request.models else {"models": ",".join(request.models)}),
         **({} if request.cell_selection == "land" else {"cell_selection": request.cell_selection}),
@@ -69,9 +69,12 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
         try:
             response = await client.get(url, params=params)
             response.raise_for_status()
-            weather_data = response.json()
+            response_data = response.json()
+
+            # Parse the response data into CurrentWeatherResponse
+            parsed_response = CurrentWeatherResponse(**response_data)
             
-            return weather_data
+            return parsed_response
         
         except httpx.HTTPStatusError as e:
             raise HTTPException(status_code=500, detail=f"HTTP error occurred: {e}")
