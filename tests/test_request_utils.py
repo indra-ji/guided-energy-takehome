@@ -1,4 +1,4 @@
-import pytest
+
 from models.requests import CurrentWeatherRequest, CurrentWeatherParameters
 from utils.request_utils import build_weather_params, get_weather_parameters_description, get_weather_request_parameters_description
 

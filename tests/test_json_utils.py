@@ -2,7 +2,6 @@ import pytest
 import json
 import tempfile
 import os
-from unittest.mock import patch, mock_open
 from utils.json_utils import load_json, ensure_strict_schema
 
 
