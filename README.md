@@ -442,3 +442,36 @@ uv run pytest
 ## License
 
 See [LICENSE](LICENSE) file for details.
+
+## Further Improvements
+
+This current implementation represents a first part. The following improvements were planned but not implemented due to prioritizing a more limited version delivered quicker.
+
+#### Historical Weather Integration
+- **Implement historical weather API endpoints** using OpenMeteo's Historical Weather API
+- **Extend agent to handle past weather queries** (e.g., "What was the weather like last Tuesday?")
+- **Add date parsing and validation** for historical requests
+- **Update prompts** to handle temporal reasoning
+
+#### Future Weather/Forecasting
+- **Implement forecast API endpoints** using OpenMeteo's Forecast API (7-16 days)
+- **Add hourly and daily forecast capabilities** 
+- **Extend agent for future weather queries** (e.g., "Will it rain tomorrow?", "What's the weather forecast for next week?")
+- **Implement forecast confidence and uncertainty handling**
+
+#### Location Flexibility
+- **Remove current location restriction** to support any location queries
+- **Add location parsing and geocoding** (city names, addresses, landmarks)
+- **Implement location validation and disambiguation**
+- **Support multiple location formats** (coordinates, city names, postal codes)
+
+#### Multi-Step Reasoning
+- **Implement recursive agent logic** for complex, multi-part queries
+- **Add query decomposition** (e.g., "Compare weather in NYC and LA this week")
+- **Implement cross-temporal analysis** (e.g., "How does today compare to last year?")
+- **Add weather trend analysis and insights**
+
+#### Evaluation Framework
+- **Implement comprehensive evaluation suite** for agent responses
+
+
