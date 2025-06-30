@@ -4,8 +4,8 @@ import httpx
 
 from models.responses import HealthResponse, AgentResponse, CurrentWeatherResponse
 from models.requests import CurrentWeatherRequest, AgentRequest
-from agents.simple import classify_weather_query
-from agents.simple import generate_weather_request
+from agents.simple_agent import classify_weather_query, generate_weather_request, answer_weather_query
+from utils.request_utils import build_weather_params
 
 
 # Create FastAPI app with custom metadata for Swagger
@@ -50,20 +50,8 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
     api_url = "/v1/forecast"
     url = f"{base_url}{api_url}"
     
-    # Build params dictionary with inline checks
-    params = {
-        "latitude": request.latitude,
-        "longitude": request.longitude,
-        **({} if request.elevation is None else {"elevation": request.elevation}),
-        **({} if request.current is None or not request.current.get_selected_parameters() else {"current": ",".join(request.current.get_selected_parameters())}),
-        **({} if request.temperature_unit == "celsius" else {"temperature_unit": request.temperature_unit}),
-        **({} if request.wind_speed_unit == "kmh" else {"wind_speed_unit": request.wind_speed_unit}),
-        **({} if request.precipitation_unit == "mm" else {"precipitation_unit": request.precipitation_unit}),
-        **({} if request.timeformat == "iso8601" else {"timeformat": request.timeformat}), 
-        **({} if request.timezone == "GMT" else {"timezone": request.timezone}),
-        **({} if request.models is None or request.models == ["string"] or not request.models else {"models": ",".join(request.models)}),
-        **({} if request.cell_selection == "land" else {"cell_selection": request.cell_selection}),
-    }
+    # Build params dictionary using utility function
+    params = build_weather_params(request)
     
     async with httpx.AsyncClient() as client:
         try:
@@ -81,7 +69,7 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
-@app.post("/simple_weather_agent")
+@app.post("/simple_weather_agent", response_model=AgentResponse)
 async def simple_weather_agent(request: AgentRequest):
     """
     A simple weather agent that uses the weather API to get the weather for the current location.
@@ -94,12 +82,20 @@ async def simple_weather_agent(request: AgentRequest):
     if not is_weather_query:
         return AgentResponse(message="I'm sorry, I can only answer questions about the weather at your current time and location.")
 
-    # Generate weather request for weather-related queries
+    # Generate weather request for weather-related queries using LLM
     weather_request = generate_weather_request(request.query)
 
-    return weather_request
+    # Get the current weather from the weather API 
+    current_weather_response = await get_current_weather(weather_request)
 
-    
+    # Answer the weather query using LLM and the weather data
+    answer = answer_weather_query(current_weather_response, request.query)
+
+    # Return the agent response
+    agent_response = AgentResponse(message=answer)
+
+    return agent_response
+
 
 
 def main():

@@ -3,6 +3,10 @@ import os
 import json
 import dotenv
 from models.requests import CurrentWeatherParameters, CurrentWeatherRequest
+from models.responses import CurrentWeatherResponse
+from utils.json_utils import load_json, ensure_strict_schema
+from utils.geo_utils import get_location_from_ip
+from utils.request_utils import get_weather_parameters_description, get_weather_request_parameters_description
 
 dotenv.load_dotenv()
 
@@ -10,58 +14,6 @@ dotenv.load_dotenv()
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
-
-def load_prompts():
-    """Load prompts from prompts.json"""
-    try:
-        with open('prompts/prompts.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        raise FileNotFoundError("prompts/prompts.json not found")
-
-def load_config():
-    """Load configuration from configs/config.json"""
-    try:
-        with open('configs/config.json', 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        raise FileNotFoundError("configs/config.json not found")
-
-def ensure_strict_schema(schema: dict) -> dict:
-    """
-    Recursively ensure a schema is compatible with OpenAI's strict mode by:
-    1. Setting additionalProperties to false for all objects
-    2. Ensuring all properties are listed in required array
-    """
-    if isinstance(schema, dict):
-        # Handle object types
-        if schema.get('type') == 'object':
-            # Set additionalProperties to false
-            schema['additionalProperties'] = False
-            
-            # Ensure all properties are required
-            if 'properties' in schema:
-                schema['required'] = list(schema['properties'].keys())
-                
-                # Recursively process nested properties
-                for prop_name, prop_schema in schema['properties'].items():
-                    schema['properties'][prop_name] = ensure_strict_schema(prop_schema)
-        
-        # Handle arrays with items
-        elif schema.get('type') == 'array' and 'items' in schema:
-            schema['items'] = ensure_strict_schema(schema['items'])
-        
-        # Handle anyOf, oneOf, allOf
-        for key in ['anyOf', 'oneOf', 'allOf']:
-            if key in schema:
-                schema[key] = [ensure_strict_schema(s) for s in schema[key]]
-        
-        # Handle $ref (though Pydantic's model_json_schema should resolve these)
-        if '$defs' in schema:
-            for def_name, def_schema in schema['$defs'].items():
-                schema['$defs'][def_name] = ensure_strict_schema(def_schema)
-    
-    return schema
 
 def classify_weather_query(query: str) -> bool:
     """
@@ -75,8 +27,8 @@ def classify_weather_query(query: str) -> bool:
     """
     try:
         # Load prompts and config
-        prompts = load_prompts()
-        config = load_config()
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
         
         # Get configuration for weather classification
         openai_config = config["openai"]["weather_classification"]
@@ -108,6 +60,7 @@ def classify_weather_query(query: str) -> bool:
         print(f"Error classifying query: {e}")
         return False
 
+
 def generate_weather_request(query: str) -> CurrentWeatherRequest:
     """
     Generate CurrentWeatherParameters and CurrentWeatherRequest from a user query string.
@@ -121,21 +74,31 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
     """
     try:
         # Load prompts and config
-        prompts = load_prompts()
-        config = load_config()
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
         
         # Generate JSON schemas from Pydantic models and make them strict-compatible
         weather_params_schema = ensure_strict_schema(CurrentWeatherParameters.model_json_schema())
         
-        # Generate base request schema without the 'current' field
+        # Generate base request schema without the 'current', 'latitude', and 'longitude' fields
         base_request_schema = CurrentWeatherRequest.model_json_schema()
         base_request_schema['properties'].pop('current', None)
+        base_request_schema['properties'].pop('latitude', None)
+        base_request_schema['properties'].pop('longitude', None)
+        
         # Apply strict mode requirements recursively
         base_request_schema = ensure_strict_schema(base_request_schema)
         
         # First API call: Extract necessary weather parameters
         param_config = config["openai"]["weather_parameter_extraction"]
-        param_prompt = prompts["weather_parameter_extraction"]["system"]
+        base_param_prompt = prompts["weather_parameter_extraction"]["system"]
+        
+        # Dynamically append the parameter list to the prompt
+        parameters_description = get_weather_parameters_description()
+        param_prompt = base_param_prompt.replace(
+            "PLACEHOLDER_FOR_DYNAMIC_PARAMETERS",
+            parameters_description
+        )
         
         param_response = client.chat.completions.create(
             model=param_config["model"],
@@ -169,7 +132,14 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         
         # Second API call: Build the weather request (using excluded schema)
         request_config = config["openai"]["weather_request_building"]
-        request_prompt = prompts["weather_request_building"]["system"]
+        base_request_prompt = prompts["weather_request_building"]["system"]
+        
+        # Dynamically append the request parameters list to the prompt
+        request_parameters_description = get_weather_request_parameters_description()
+        request_prompt = base_request_prompt.replace(
+            "PLACEHOLDER_FOR_REQUEST_PARAMETERS",
+            request_parameters_description
+        )
         
         request_response = client.chat.completions.create(
             model=request_config["model"],
@@ -200,14 +170,80 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         
         # Add the weather parameters to the request data
         request_data["current"] = weather_params
+
+        # Get latitude and longitude from IP
+        latitude, longitude = get_location_from_ip()
+        request_data["latitude"] = latitude
+        request_data["longitude"] = longitude
         
         # Create and return CurrentWeatherRequest object
         weather_request = CurrentWeatherRequest(**request_data)
-        
+
         return weather_request
         
     except Exception as e:
         # In case of API error, raise the exception with context
         raise Exception(f"Error generating weather request: {e}")
+
+def answer_weather_query(weather_response: CurrentWeatherResponse, user_query: str) -> str:
+    """
+    Generate a natural language answer to a user's weather query based on the weather data.
+    
+    Args:
+        weather_response (CurrentWeatherResponse): The weather data response from the API
+        user_query (str): The original user query asking about weather
+        
+    Returns:
+        str: A natural language answer to the user's weather query
+    """
+    try:
+        # Load prompts and config
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
+        
+        # Get configuration for weather answer generation
+        openai_config = config["openai"]["weather_answer_generation"]
+        base_answer_prompt = prompts["weather_answer_generation"]["system"]
+        
+        # Dynamically inject parameter information into the prompt
+        weather_parameters_description = get_weather_parameters_description()
+        request_parameters_description = get_weather_request_parameters_description()
+        
+        answer_prompt = base_answer_prompt.replace(
+            "PLACEHOLDER_FOR_WEATHER_PARAMETERS", 
+            weather_parameters_description
+        ).replace(
+            "PLACEHOLDER_FOR_REQUEST_PARAMETERS", 
+            request_parameters_description
+        )
+        
+        # Convert weather response to a clean JSON string for the prompt
+        weather_data = weather_response.model_dump_json(indent=2)
+        
+        # Create the user message combining the query and weather data
+        user_message = f"User Query: {user_query}\n\nWeather Data:\n{weather_data}"
+        
+        response = client.chat.completions.create(
+            model=openai_config["model"],
+            messages=[
+                {
+                    "role": "system",
+                    "content": answer_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ],
+            max_tokens=openai_config["max_tokens"],
+            temperature=openai_config["temperature"]
+        )
+        
+        return response.choices[0].message.content.strip()
+        
+    except Exception as e:
+        # In case of API error, raise the exception with context
+        raise Exception(f"Error generating weather answer: {e}")
+
 
 
