@@ -27,8 +27,8 @@ def load_json(file_path: str):
             logger.debug(f"JSON data size: {len(str(data))} characters")
             return data
     except FileNotFoundError as e:
-        logger.error(f"JSON file not found: {file_path}")
-        raise FileNotFoundError(f"{file_path} not found")
+        logger.error(f"JSON file not found: {file_path}: {e}")
+        raise FileNotFoundError(f"{file_path} not found: {e}")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON format in file {file_path}: {e}")
         raise json.JSONDecodeError(f"Invalid JSON in {file_path}: {e}")
