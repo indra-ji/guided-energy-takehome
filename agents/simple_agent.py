@@ -3,7 +3,9 @@ import os
 import json
 import dotenv
 from models.requests import CurrentWeatherParameters, CurrentWeatherRequest
+from models.responses import CurrentWeatherResponse
 from utils.json_utils import load_json, ensure_strict_schema
+from utils.geo_utils import get_location_from_ip
 
 dotenv.load_dotenv()
 
@@ -76,9 +78,11 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         # Generate JSON schemas from Pydantic models and make them strict-compatible
         weather_params_schema = ensure_strict_schema(CurrentWeatherParameters.model_json_schema())
         
-        # Generate base request schema without the 'current' field
+        # Generate base request schema without the 'current', 'latitude', and 'longitude' fields
         base_request_schema = CurrentWeatherRequest.model_json_schema()
         base_request_schema['properties'].pop('current', None)
+        base_request_schema['properties'].pop('latitude', None)
+        base_request_schema['properties'].pop('longitude', None)
         # Apply strict mode requirements recursively
         base_request_schema = ensure_strict_schema(base_request_schema)
         
@@ -149,14 +153,68 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         
         # Add the weather parameters to the request data
         request_data["current"] = weather_params
+
+        # Get latitude and longitude from IP
+        latitude, longitude = get_location_from_ip()
+        request_data["latitude"] = latitude
+        request_data["longitude"] = longitude
         
         # Create and return CurrentWeatherRequest object
         weather_request = CurrentWeatherRequest(**request_data)
-        
+
         return weather_request
         
     except Exception as e:
         # In case of API error, raise the exception with context
         raise Exception(f"Error generating weather request: {e}")
+
+def answer_weather_query(weather_response: CurrentWeatherResponse, user_query: str) -> str:
+    """
+    Generate a natural language answer to a user's weather query based on the weather data.
+    
+    Args:
+        weather_response (CurrentWeatherResponse): The weather data response from the API
+        user_query (str): The original user query asking about weather
+        
+    Returns:
+        str: A natural language answer to the user's weather query
+    """
+    try:
+        # Load prompts and config
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
+        
+        # Get configuration for weather answer generation
+        openai_config = config["openai"]["weather_answer_generation"]
+        answer_prompt = prompts["weather_answer_generation"]["system"]
+        
+        # Convert weather response to a clean JSON string for the prompt
+        weather_data = weather_response.model_dump_json(indent=2)
+        
+        # Create the user message combining the query and weather data
+        user_message = f"User Query: {user_query}\n\nWeather Data:\n{weather_data}"
+        
+        response = client.chat.completions.create(
+            model=openai_config["model"],
+            messages=[
+                {
+                    "role": "system",
+                    "content": answer_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ],
+            max_tokens=openai_config["max_tokens"],
+            temperature=openai_config["temperature"]
+        )
+        
+        return response.choices[0].message.content.strip()
+        
+    except Exception as e:
+        # In case of API error, raise the exception with context
+        raise Exception(f"Error generating weather answer: {e}")
+
 
 

@@ -17,7 +17,7 @@
       "last_edited": "2024-01-20T10:30:00Z"
     },
     "weather_parameter_extraction": {
-      "model": "gpt-4.1",
+      "model": "gpt-4.1-mini",
       "max_tokens": 500,
       "temperature": 0,
       "response_format": {
@@ -27,12 +27,19 @@
       "last_edited": "2024-01-20T10:30:00Z"
     },
     "weather_request_building": {
-      "model": "gpt-4.1",
+      "model": "gpt-4.1-mini",
       "max_tokens": 300,
       "temperature": 0,
       "response_format": {
         "type": "json_object"
       },
+      "version": "1.0.0",
+      "last_edited": "2024-01-20T10:30:00Z"
+    },
+    "weather_answer_generation": {
+      "model": "gpt-4.1-mini",
+      "max_tokens": 400,
+      "temperature": 0.3,
       "version": "1.0.0",
       "last_edited": "2024-01-20T10:30:00Z"
     }
