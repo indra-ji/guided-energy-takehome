@@ -5,7 +5,7 @@ import httpx
 from models.responses import HealthResponse, AgentResponse, CurrentWeatherResponse
 from models.requests import CurrentWeatherRequest, AgentRequest
 from agents.simple_agent import classify_weather_query, generate_weather_request, answer_weather_query
-from utils.request_utils import build_openmeteo_params
+from utils.request_utils import build_weather_params
 
 
 # Create FastAPI app with custom metadata for Swagger
@@ -51,7 +51,7 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
     url = f"{base_url}{api_url}"
     
     # Build params dictionary using utility function
-    params = build_openmeteo_params(request)
+    params = build_weather_params(request)
     
     async with httpx.AsyncClient() as client:
         try:
@@ -82,13 +82,13 @@ async def simple_weather_agent(request: AgentRequest):
     if not is_weather_query:
         return AgentResponse(message="I'm sorry, I can only answer questions about the weather at your current time and location.")
 
-    # Generate weather request for weather-related queries
+    # Generate weather request for weather-related queries using LLM
     weather_request = generate_weather_request(request.query)
 
-    # Get the current weather
+    # Get the current weather from the weather API 
     current_weather_response = await get_current_weather(weather_request)
 
-    # Answer the weather query
+    # Answer the weather query using LLM and the weather data
     answer = answer_weather_query(current_weather_response, request.query)
 
     # Return the agent response

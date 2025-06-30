@@ -6,6 +6,7 @@ from models.requests import CurrentWeatherParameters, CurrentWeatherRequest
 from models.responses import CurrentWeatherResponse
 from utils.json_utils import load_json, ensure_strict_schema
 from utils.geo_utils import get_location_from_ip
+from utils.request_utils import get_weather_parameters_description, get_weather_request_parameters_description
 
 dotenv.load_dotenv()
 
@@ -59,6 +60,7 @@ def classify_weather_query(query: str) -> bool:
         print(f"Error classifying query: {e}")
         return False
 
+
 def generate_weather_request(query: str) -> CurrentWeatherRequest:
     """
     Generate CurrentWeatherParameters and CurrentWeatherRequest from a user query string.
@@ -83,12 +85,20 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         base_request_schema['properties'].pop('current', None)
         base_request_schema['properties'].pop('latitude', None)
         base_request_schema['properties'].pop('longitude', None)
+        
         # Apply strict mode requirements recursively
         base_request_schema = ensure_strict_schema(base_request_schema)
         
         # First API call: Extract necessary weather parameters
         param_config = config["openai"]["weather_parameter_extraction"]
-        param_prompt = prompts["weather_parameter_extraction"]["system"]
+        base_param_prompt = prompts["weather_parameter_extraction"]["system"]
+        
+        # Dynamically append the parameter list to the prompt
+        parameters_description = get_weather_parameters_description()
+        param_prompt = base_param_prompt.replace(
+            "PLACEHOLDER_FOR_DYNAMIC_PARAMETERS",
+            parameters_description
+        )
         
         param_response = client.chat.completions.create(
             model=param_config["model"],
@@ -122,7 +132,14 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         
         # Second API call: Build the weather request (using excluded schema)
         request_config = config["openai"]["weather_request_building"]
-        request_prompt = prompts["weather_request_building"]["system"]
+        base_request_prompt = prompts["weather_request_building"]["system"]
+        
+        # Dynamically append the request parameters list to the prompt
+        request_parameters_description = get_weather_request_parameters_description()
+        request_prompt = base_request_prompt.replace(
+            "PLACEHOLDER_FOR_REQUEST_PARAMETERS",
+            request_parameters_description
+        )
         
         request_response = client.chat.completions.create(
             model=request_config["model"],
@@ -186,7 +203,19 @@ def answer_weather_query(weather_response: CurrentWeatherResponse, user_query: s
         
         # Get configuration for weather answer generation
         openai_config = config["openai"]["weather_answer_generation"]
-        answer_prompt = prompts["weather_answer_generation"]["system"]
+        base_answer_prompt = prompts["weather_answer_generation"]["system"]
+        
+        # Dynamically inject parameter information into the prompt
+        weather_parameters_description = get_weather_parameters_description()
+        request_parameters_description = get_weather_request_parameters_description()
+        
+        answer_prompt = base_answer_prompt.replace(
+            "PLACEHOLDER_FOR_WEATHER_PARAMETERS", 
+            weather_parameters_description
+        ).replace(
+            "PLACEHOLDER_FOR_REQUEST_PARAMETERS", 
+            request_parameters_description
+        )
         
         # Convert weather response to a clean JSON string for the prompt
         weather_data = weather_response.model_dump_json(indent=2)

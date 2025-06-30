@@ -1,8 +1,8 @@
-from models.requests import CurrentWeatherRequest
+from models.requests import CurrentWeatherRequest, CurrentWeatherParameters
 from typing import Dict, Any
 
 
-def build_openmeteo_params(request: CurrentWeatherRequest) -> Dict[str, Any]:
+def build_weather_params(request: CurrentWeatherRequest) -> Dict[str, Any]:
     """
     Build parameters dictionary for OpenMeteo API from CurrentWeatherRequest.
     
@@ -27,3 +27,36 @@ def build_openmeteo_params(request: CurrentWeatherRequest) -> Dict[str, Any]:
     }
     
     return params
+
+def get_weather_parameters_description() -> str:
+    """
+    Dynamically generate the weather parameters description from the CurrentWeatherParameters model.
+    
+    Returns:
+        str: A formatted string describing all available weather parameters
+    """
+    # Get the model fields and their descriptions
+    parameters = []
+    for field_name, field_info in CurrentWeatherParameters.model_fields.items():
+        description = field_info.description or "No description available"
+        parameters.append(f"{field_name}: {description}")
+    
+    return ", ".join(parameters)
+
+def get_weather_request_parameters_description() -> str:
+    """
+    Dynamically generate the weather request parameters description from the CurrentWeatherRequest model.
+    
+    Returns:
+        str: A formatted string describing all available request parameters
+    """
+    # Get the model fields and their descriptions, excluding current, latitude, longitude
+    excluded_fields = {"current", "latitude", "longitude"}
+    parameters = []
+    
+    for field_name, field_info in CurrentWeatherRequest.model_fields.items():
+        if field_name not in excluded_fields:
+            description = field_info.description or "No description available"
+            parameters.append(f"{field_name}: {description}")
+    
+    return ", ".join(parameters)
