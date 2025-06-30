@@ -1,6 +1,5 @@
-import pytest
-import json
-from unittest.mock import Mock, patch, MagicMock
+
+from unittest.mock import Mock, patch
 from agents.simple_agent import classify_weather_query
 
 
