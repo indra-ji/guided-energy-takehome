@@ -109,7 +109,7 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
 @app.post("/simple_weather_agent", response_model=AgentResponse)
 async def simple_weather_agent(request: AgentRequest):
     """
-    A simple weather agent that uses the weather API to get the weather for the current location.
+    A simple weather agent that uses the weather API to get the weather for the current location and time.
     """
     logger.info(f"Simple weather agent endpoint accessed with query: '{request.query}'")
     
