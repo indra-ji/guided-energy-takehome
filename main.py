@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 import uvicorn
 import httpx
 import logging
@@ -9,6 +9,7 @@ from models.responses import HealthResponse, AgentResponse, CurrentWeatherRespon
 from models.requests import CurrentWeatherRequest, AgentRequest
 from agents.simple_agent import classify_weather_query, generate_weather_request, answer_weather_query
 from utils.request_utils import build_weather_params
+from utils.geo_utils import get_client_ip_from_request
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -107,13 +108,14 @@ async def get_current_weather(request: CurrentWeatherRequest = Depends()):
             raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 @app.post("/simple_weather_agent", response_model=AgentResponse)
-async def simple_weather_agent(request: AgentRequest):
+async def simple_weather_agent(request: AgentRequest, http_request: Request):
     """
     A simple weather agent that uses the weather API to get the weather for the current location and time.
     """
     logger.info(f"Simple weather agent endpoint accessed with query: '{request.query}'")
     
     try:
+        
         # Classify whether the query is within scope
         logger.debug("Starting query classification")
         is_weather_query = classify_weather_query(request.query)
@@ -124,10 +126,14 @@ async def simple_weather_agent(request: AgentRequest):
             logger.info("Query is not weather-related, returning scope limitation message")
             response = AgentResponse(message="I'm sorry, I can only answer questions about the weather at your current time and location.")
             return response
-
+        
+        # Extract client IP for accurate location detection
+        client_ip = get_client_ip_from_request(http_request)
+        logger.debug(f"Detected client IP: {client_ip}")
+        
         # Generate weather request for weather-related queries using LLM
         logger.debug("Generating weather request from query")
-        weather_request = generate_weather_request(request.query)
+        weather_request = generate_weather_request(request.query, client_ip)
         logger.info("Weather request generated successfully")
 
         # Get the current weather from the weather API 

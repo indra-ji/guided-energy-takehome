@@ -8,6 +8,7 @@ from models.responses import CurrentWeatherResponse
 from utils.json_utils import load_json, ensure_strict_schema
 from utils.geo_utils import get_location_from_ip
 from utils.request_utils import get_weather_parameters_description, get_weather_request_parameters_description
+from typing import Optional
 
 dotenv.load_dotenv()
 
@@ -87,13 +88,14 @@ def classify_weather_query(query: str) -> bool:
         return False
 
 
-def generate_weather_request(query: str) -> CurrentWeatherRequest:
+def generate_weather_request(query: str, client_ip: Optional[str] = None) -> CurrentWeatherRequest:
     """
     Generate CurrentWeatherParameters and CurrentWeatherRequest from a user query string.
     Makes two API calls: one to extract necessary parameters, and another to build the request.
     
     Args:
         query (str): The user query describing what weather information they need
+        client_ip (Optional[str]): Client IP address for location detection
         
     Returns:
         CurrentWeatherRequest: Complete request object ready for the weather API
@@ -219,8 +221,8 @@ def generate_weather_request(query: str) -> CurrentWeatherRequest:
         request_data["current"] = weather_params
 
         # Get latitude and longitude from IP
-        logger.debug("Getting location from IP address")
-        latitude, longitude = get_location_from_ip()
+        logger.debug(f"Getting location from IP address: {client_ip or 'auto-detect'}")
+        latitude, longitude = get_location_from_ip(client_ip)
         request_data["latitude"] = latitude
         request_data["longitude"] = longitude
         
