@@ -33,9 +33,11 @@ def get_location_from_ip(client_ip: Optional[str] = None) -> Tuple[float, float]
     
     try:
         with httpx.Client() as client:
-            # If no client IP provided, get the public IP address (fallback for server-side usage)
-            if client_ip is None:
-                logger.debug("No client IP provided, fetching public IP address from ipify.org")
+            target_ip = client_ip
+            
+            # If no client IP provided or it's localhost, get the public IP address
+            if target_ip is None or target_ip in ['127.0.0.1', 'localhost', '::1']:
+                logger.debug("No valid client IP provided or localhost detected, fetching public IP address from ipify.org")
                 ip_response = client.get("https://api.ipify.org?format=json", timeout=5.0)
                 ip_response.raise_for_status()
                 ip_data = ip_response.json()
@@ -51,7 +53,6 @@ def get_location_from_ip(client_ip: Optional[str] = None) -> Tuple[float, float]
                 target_ip = public_ip
             else:
                 logger.info(f"Using provided client IP: {client_ip}")
-                target_ip = client_ip
             
             # Get geolocation data from the IP
             logger.debug(f"Fetching geolocation data for IP: {target_ip}")
@@ -116,12 +117,15 @@ def get_client_ip_from_request(request) -> Optional[str]:
         if header in request.headers:
             # X-Forwarded-For can contain multiple IPs, take the first one (original client)
             ip_value = request.headers[header].split(',')[0].strip()
-            if ip_value:
+            if ip_value and ip_value not in ['127.0.0.1', 'localhost', '::1']:
                 logger.debug(f"Client IP found in {header}: {ip_value}")
                 return ip_value
     
     # Fallback to direct client IP
     client_ip = request.client.host if request.client else None
-    logger.debug(f"Using direct client IP: {client_ip}")
+    if client_ip and client_ip not in ['127.0.0.1', 'localhost', '::1']:
+        logger.debug(f"Using direct client IP: {client_ip}")
+        return client_ip
     
-    return client_ip
+    logger.debug("No valid client IP found, will use public IP fallback")
+    return None
