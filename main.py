@@ -7,7 +7,7 @@ import dotenv
 
 from models.responses import HealthResponse, AgentResponse, CurrentWeatherResponse
 from models.requests import CurrentWeatherRequest, AgentRequest
-from agents.simple_agent import classify_weather_query, generate_weather_request, answer_weather_query
+from agents.simple_agent import classify_weather_query, classify_weather_query_location, generate_weather_request, generate_weather_request_location, answer_weather_query, extract_location_from_query
 from utils.request_utils import build_weather_params
 from utils.geo_utils import get_client_ip_from_request
 
@@ -153,11 +153,43 @@ async def simple_weather_agent(request: AgentRequest, http_request: Request):
         return agent_response
     
     except Exception as e:
-        logger.error(f"Error in simple weather agent: {e}")
-        logger.debug(f"Failed query: '{request.query}'")
         raise HTTPException(status_code=500, detail=f"Agent error: {e}")
 
+@app.post("/simple_location_weather_agent", response_model=AgentResponse)
+async def simple_location_weather_agent(request: AgentRequest, http_request: Request):
+    """
+    A weather agent that given a natural language query, pulls out the location and uses geocoding to get the lat/long coordinates to answer the query.
+    """
+    
+    try:
+        
+        # Classify whether the query is within scope
+        is_weather_query = classify_weather_query_location(request.query)
 
+        # If the query is not about weather, return a message
+        if not is_weather_query:
+            response = AgentResponse(message="I'm sorry, I can only answer questions about the weather at your current time and location.")
+            return response
+        
+        #Extract the location from the query
+        location = extract_location_from_query(request.query)
+
+        # Generate weather request for weather-related queries using LLM
+        weather_request = generate_weather_request_location(request.query, location)
+
+        # Get the current weather from the weather API 
+        current_weather_response = await get_current_weather(weather_request)
+
+        # Answer the weather query using LLM and the weather data
+        answer = answer_weather_query(current_weather_response, request.query)
+
+        # Return the agent response
+        agent_response = AgentResponse(message=answer)
+        
+        return agent_response
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {e}")
 
 def main():
     """

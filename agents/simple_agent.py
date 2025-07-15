@@ -6,7 +6,7 @@ import logging
 from models.requests import CurrentWeatherParameters, CurrentWeatherRequest
 from models.responses import CurrentWeatherResponse
 from utils.json_utils import load_json, ensure_strict_schema
-from utils.geo_utils import get_location_from_ip
+from utils.geo_utils import get_location_from_ip, get_lat_lon_from_location
 from utils.request_utils import get_weather_parameters_description, get_weather_request_parameters_description
 from typing import Optional
 
@@ -86,7 +86,95 @@ def classify_weather_query(query: str) -> bool:
         logger.error(f"Error classifying query: {e}")
         logger.debug(f"Query that failed classification: '{query}'")
         return False
+    
+def classify_weather_query_location(query: str) -> bool:
+    """
+    Classify if a query is related to current weather in a given location or set of locations..
+    
+    Args:
+        query (str): The input query to classify
+        
+    Returns:
+        bool: True if the query is related to current weather in current location, False otherwise
+    """
+    
+    try:
+        # Load prompts and config
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
+        
+        # Get configuration for weather classification
+        openai_config = config["openai"]["weather_classification"]
+        weather_prompt = prompts["weather_classification_location"]["system"]
+        
+        response = client.chat.completions.create(
+            model=openai_config["model"],
+            messages=[
+                {
+                    "role": "system",
+                    "content": weather_prompt
+                },
+                {
+                    "role": "user",
+                    "content": query
+                }
+            ],
+            max_tokens=openai_config["max_tokens"],
+            temperature=openai_config["temperature"],
+            response_format=openai_config["response_format"]
+        )
+        
+        # Parse JSON response
+        result = json.loads(response.choices[0].message.content.strip())
+        is_weather_query = result.get("is_weather_query", False)
+        
+        return is_weather_query
+        
+    except Exception as e:
+        # In case of API error, default to False
+        return False
 
+def extract_location_from_query(query: str) -> str:
+    """
+    Extract the location from a user query.
+    """
+
+    try:
+        # Load prompts and config
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
+        
+        # Get configuration for location extraction
+        openai_config = config["openai"]["location_extraction"]
+        weather_prompt = prompts["location_extraction"]["system"]
+        
+        response = client.chat.completions.create(
+            model=openai_config["model"],
+            messages=[
+                {
+                    "role": "system",
+                    "content": weather_prompt
+                },
+                {
+                    "role": "user",
+                    "content": query
+                }
+            ],
+            max_tokens=openai_config["max_tokens"],
+            temperature=openai_config["temperature"],
+            response_format=openai_config["response_format"]
+        )
+        
+        # Parse JSON response
+        location = json.loads(response.choices[0].message.content.strip())
+        
+        return location
+        
+    except Exception as e:
+        # In case of API error, default to False
+        return False
+
+    return query
 
 def generate_weather_request(query: str, client_ip: Optional[str] = None) -> CurrentWeatherRequest:
     """
@@ -239,6 +327,132 @@ def generate_weather_request(query: str, client_ip: Optional[str] = None) -> Cur
         # In case of API error, raise the exception with context
         logger.error(f"Error generating weather request: {e}")
         logger.debug(f"Query that failed request generation: '{query}'")
+        raise Exception(f"Error generating weather request: {e}")
+    
+def generate_weather_request_location(query: str, location: str) -> CurrentWeatherRequest:
+    """
+    Generate CurrentWeatherParameters and CurrentWeatherRequest from a user query string and a specific location.
+    Makes two API calls: one to extract necessary parameters, and another to build the request.
+    
+    Args:
+        query (str): The user query describing what weather information they need
+        location (str): The location to get weather information for
+        
+    Returns:
+        CurrentWeatherRequest: Complete request object ready for the weather API
+    """
+    
+    try:
+        # Load prompts and config
+        prompts = load_json("prompts/prompts.json")
+        config = load_json("configs/config.json")
+        
+        # Generate JSON schemas from Pydantic models and make them strict-compatible
+        weather_params_schema = ensure_strict_schema(CurrentWeatherParameters.model_json_schema())
+        
+        # Generate base request schema without the 'current', 'latitude', and 'longitude' fields
+        base_request_schema = CurrentWeatherRequest.model_json_schema()
+        base_request_schema['properties'].pop('current', None)
+        base_request_schema['properties'].pop('latitude', None)
+        base_request_schema['properties'].pop('longitude', None)
+        
+        # Apply strict mode requirements recursively
+        base_request_schema = ensure_strict_schema(base_request_schema)
+        
+        # First API call: Extract necessary weather parameters
+        param_config = config["openai"]["weather_parameter_extraction"]
+        base_param_prompt = prompts["weather_parameter_extraction"]["system"]
+        
+        # Dynamically append the parameter list to the prompt
+        parameters_description = get_weather_parameters_description()
+        param_prompt = base_param_prompt.replace(
+            "PLACEHOLDER_FOR_DYNAMIC_PARAMETERS",
+            parameters_description
+        )
+        
+        param_response = client.chat.completions.create(
+            model=param_config["model"],
+            messages=[
+                {
+                    "role": "system",
+                    "content": param_prompt
+                },
+                {
+                    "role": "user",
+                    "content": query
+                }
+            ],
+            max_tokens=param_config["max_tokens"],
+            temperature=param_config["temperature"],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "weather_parameters",
+                    "strict": True,
+                    "schema": weather_params_schema
+                }
+            }
+        )
+        
+        # Parse parameter extraction response
+        param_data = json.loads(param_response.choices[0].message.content.strip())
+        
+        # Create CurrentWeatherParameters object with only necessary parameters
+        weather_params = CurrentWeatherParameters(**param_data)
+        
+        # Second API call: Build the weather request (using excluded schema)
+        request_config = config["openai"]["weather_request_building"]
+        base_request_prompt = prompts["weather_request_building"]["system"]
+        
+        # Dynamically append the request parameters list to the prompt
+        request_parameters_description = get_weather_request_parameters_description()
+        request_prompt = base_request_prompt.replace(
+            "PLACEHOLDER_FOR_REQUEST_PARAMETERS",
+            request_parameters_description
+        )
+        
+        request_response = client.chat.completions.create(
+            model=request_config["model"],
+            messages=[
+                {
+                    "role": "system",
+                    "content": request_prompt
+                },
+                {
+                    "role": "user",
+                    "content": query
+                }
+            ],
+            max_tokens=request_config["max_tokens"],
+            temperature=request_config["temperature"],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "weather_request",
+                    "strict": True,
+                    "schema": base_request_schema
+                }
+            }
+        )
+        
+        # Parse request building response
+        request_data = json.loads(request_response.choices[0].message.content.strip())
+        
+        # Add the weather parameters to the request data
+        request_data["current"] = weather_params
+
+        # Get latitude and longitude from the geocoding api in utils.geo_utils
+        latitude, longitude = get_lat_lon_from_location(location)
+        request_data["latitude"] = latitude
+        request_data["longitude"] = longitude
+        
+        # Create and return CurrentWeatherRequest object
+        weather_request = CurrentWeatherRequest(**request_data)
+
+        return weather_request
+        
+    except Exception as e:
+        # In case of API error, raise the exception with context
         raise Exception(f"Error generating weather request: {e}")
 
 def answer_weather_query(weather_response: CurrentWeatherResponse, user_query: str) -> str:

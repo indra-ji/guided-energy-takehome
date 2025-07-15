@@ -11,6 +11,18 @@
     "version": "1.0.0",
     "last_edited": "2024-01-20T10:30:00Z"
   },
+  "weather_classification_location": {
+    "system": "You are a classifier that determines if a user query is about or related to weather conditions at a given location or set of locations. You must respond with a JSON object containing a single boolean field 'is_weather_query'. Set this to true if the query is asking about current weather in any location, or false if it's asking about past or future weather, or non-weather related topics.",
+    "description": "Classifies whether a query is about current weather in a given location or set of locations",
+    "version": "1.0.0",
+    "last_edited": "2024-01-20T10:30:00Z"
+  },
+  "location_extraction": {
+    "system": "You are an expert at extracting locations from user queries. Given a user query, you must respond with a JSON object containing a single string field 'location'. Set this to the location mentioned in the query. If the query doesn't mention a location, set this to an empty string.",
+    "description": "Extracts locations from user queries",
+    "version": "1.0.0",
+    "last_edited": "2024-01-20T10:30:00Z"
+  },
   "weather_parameter_extraction": {
     "system": "You are an expert at analyzing weather-related queries and determining which weather parameters are needed to fulfill the request. Given a user query, you must respond with a JSON object containing only the weather parameters that are necessary to answer the question. Set each relevant parameter to true, and omit parameters that are not needed. Only include parameters that are directly relevant to answering the user's specific question. If you don't need a parameter, don't set it to false, just don't include it. Available parameters include: PLACEHOLDER_FOR_DYNAMIC_PARAMETERS.",
     "description": "Extracts necessary weather parameters from user queries",

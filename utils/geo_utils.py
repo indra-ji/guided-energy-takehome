@@ -129,3 +129,9 @@ def get_client_ip_from_request(request) -> Optional[str]:
     
     logger.debug("No valid client IP found, will use public IP fallback")
     return None
+
+def get_lat_lon_from_location(location: str) -> Tuple[float, float]:
+    """
+    Get latitude and longitude from a location name.
+    """
+    return 7, 80

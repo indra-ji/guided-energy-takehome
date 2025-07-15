@@ -16,6 +16,16 @@
       "version": "1.0.0",
       "last_edited": "2024-01-20T10:30:00Z"
     },
+    "location_extraction": {
+      "model": "gpt-4.1-mini",
+      "max_tokens": 50,
+      "temperature": 0,
+      "response_format": {
+        "type": "json_object"
+      },
+      "version": "1.0.0",
+      "last_edited": "2024-01-20T10:30:00Z"
+    },
     "weather_parameter_extraction": {
       "model": "gpt-4.1-mini",
       "max_tokens": 500,
